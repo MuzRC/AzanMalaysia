@@ -27,38 +27,89 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: Prepare Android Scaffold, Gradle & Desugaring
+      - name: Clean & Generate Android Scaffold
         run: |
-          cp android/app/src/main/AndroidManifest.xml /tmp/AndroidManifest.xml || true
-          flutter create . --org com.musa --project-name azan_jakim_app
-          cp /tmp/AndroidManifest.xml android/app/src/main/AndroidManifest.xml || true
+          # 1. Padam folder android lama jika ada fail yang rosak
+          rm -rf android
           
-          # 1. Kemaskini Gradle Wrapper ke versi 8.4
-          sed -i -E 's/gradle-[0-9.]+-/gradle-8.4-/g' android/gradle/wrapper/gradle-wrapper.properties || true
-          sed -i -e 's/-bin\.zip/-all\.zip/g' android/gradle/wrapper/gradle-wrapper.properties || true
+          # 2. Jana semula platform Android yang 100% sah dan serasi dengan Flutter 3.24
+          flutter create . --org com.musa --project-name azan_jakim_app --platforms=android
 
-          # 2. Suntik tetapan compileSdk 35, NDK, dan Core Library Desugaring
-          python3 -c '
+          # 3. Kemaskini Gradle Wrapper ke versi 8.4
+          sed -i -E 's/gradle-[0-9.]+-/gradle-8.4-/g' android/gradle/wrapper/gradle-wrapper.properties
+          sed -i -e 's/-bin\.zip/-all\.zip/g' android/gradle/wrapper/gradle-wrapper.properties
+
+          # 4. Patch build.gradle dan AndroidManifest.xml secara automatik
+          cat << 'EOF' > patch_android.py
           import re
+
+          # A. Kemaskini build.gradle (compileSdk 35, NDK, dan desugaring)
           with open("android/app/build.gradle", "r") as f:
-              c = f.read()
-          c = re.sub(r"compileSdk(\s*=\s*|\s+).*", "compileSdk = 35", c)
-          if "ndkVersion" in c:
-              c = re.sub(r"ndkVersion(\s*=\s*|\s+).*", "ndkVersion = \"25.1.8937393\"", c)
+              bg = f.read()
+
+          bg = re.sub(r"compileSdk(\s*=\s*|\s+).*", "compileSdk = 35", bg)
+          if "ndkVersion" in bg:
+              bg = re.sub(r"ndkVersion(\s*=\s*|\s+).*", 'ndkVersion = "25.1.8937393"', bg)
           else:
-              c = c.replace("compileSdk = 35", "compileSdk = 35\n    ndkVersion = \"25.1.8937393\"")
-          if "coreLibraryDesugaringEnabled" not in c:
-              c = re.sub(r"(compileOptions\s*\{)", r"\1\n        coreLibraryDesugaringEnabled true", c)
-          if "multiDexEnabled" not in c:
-              c = re.sub(r"(defaultConfig\s*\{)", r"\1\n        multiDexEnabled true", c)
-          if "desugar_jdk_libs" not in c:
-              if "dependencies {" in c:
-                  c = c.replace("dependencies {", "dependencies {\n    coreLibraryDesugaring \"com.android.tools:desugar_jdk_libs:2.0.4\"")
+              bg = bg.replace("compileSdk = 35", 'compileSdk = 35\n    ndkVersion = "25.1.8937393"')
+
+          if "coreLibraryDesugaringEnabled" not in bg:
+              bg = re.sub(r"(compileOptions\s*\{)", r"\1\n        coreLibraryDesugaringEnabled true", bg)
+
+          if "multiDexEnabled" not in bg:
+              bg = re.sub(r"(defaultConfig\s*\{)", r"\1\n        multiDexEnabled true", bg)
+
+          if "desugar_jdk_libs" not in bg:
+              if "dependencies {" in bg:
+                  bg = bg.replace("dependencies {", 'dependencies {\n    coreLibraryDesugaring "com.android.tools:desugar_jdk_libs:2.0.4"')
               else:
-                  c += "\ndependencies {\n    coreLibraryDesugaring \"com.android.tools:desugar_jdk_libs:2.0.4\"\n}\n"
+                  bg += '\ndependencies {\n    coreLibraryDesugaring "com.android.tools:desugar_jdk_libs:2.0.4"\n}\n'
+
           with open("android/app/build.gradle", "w") as f:
-              f.write(c)
-          '
+              f.write(bg)
+
+          # B. Kemaskini AndroidManifest.xml (Suntik kebenaran & receiver azan)
+          with open("android/app/src/main/AndroidManifest.xml", "r") as f:
+              manifest = f.read()
+
+          permissions = '''
+              <uses-permission android:name="android.permission.INTERNET"/>
+              <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+              <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+              <uses-permission android:name="android.permission.WAKE_LOCK"/>
+              <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+              <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
+              <uses-permission android:name="android.permission.USE_EXACT_ALARM"/>
+              <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+              <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"/>
+          '''
+
+          receiver = '''
+                  <receiver 
+                      android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver"
+                      android:exported="false">
+                      <intent-filter>
+                          <action android:name="android.intent.action.BOOT_COMPLETED"/>
+                          <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
+                          <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                      </intent-filter>
+                  </receiver>
+          '''
+
+          if "POST_NOTIFICATIONS" not in manifest:
+              manifest = re.sub(r'(<manifest[^>]*>)', r'\1' + permissions, manifest, count=1)
+
+          if "ScheduledNotificationBootReceiver" not in manifest:
+              manifest = manifest.replace("</application>", receiver + "    </application>")
+
+          with open("android/app/src/main/AndroidManifest.xml", "w") as f:
+              f.write(manifest)
+
+          print("Semua fail Android berjaya dikemaskini!")
+          EOF
+
+          python3 patch_android.py
+          rm patch_android.py
 
       - name: Install Dependencies
         run: flutter pub get
