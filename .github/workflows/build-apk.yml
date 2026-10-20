@@ -27,15 +27,25 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: Prepare Android Scaffold & Update Gradle
+      - name: Prepare Android Scaffold, Gradle & SDK Version
         run: |
           cp android/app/src/main/AndroidManifest.xml /tmp/AndroidManifest.xml || true
           flutter create . --org com.musa --project-name azan_jakim_app
           cp /tmp/AndroidManifest.xml android/app/src/main/AndroidManifest.xml || true
           
-          # Naik taraf Gradle Wrapper ke versi 8.4 (Selesaikan isu version-check)
+          # 1. Kemaskini Gradle Wrapper ke 8.4
           sed -i -E 's/gradle-[0-9.]+-/gradle-8.4-/g' android/gradle/wrapper/gradle-wrapper.properties || true
           sed -i -e 's/-bin\.zip/-all\.zip/g' android/gradle/wrapper/gradle-wrapper.properties || true
+
+          # 2. Kemaskini compileSdk ke 35
+          sed -i -E 's/compileSdk(\s*=\s*|\s+).*/compileSdk = 35/g' android/app/build.gradle || true
+
+          # 3. Kemaskini / Suntik ndkVersion 25.1.8937393
+          if grep -q "ndkVersion" android/app/build.gradle; then
+            sed -i -E 's/ndkVersion(\s*=\s*|\s+).*/ndkVersion = "25.1.8937393"/g' android/app/build.gradle || true
+          else
+            sed -i '/compileSdk/a \    ndkVersion = "25.1.8937393"' android/app/build.gradle || true
+          fi
 
       - name: Install Dependencies
         run: flutter pub get
