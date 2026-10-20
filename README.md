@@ -1,10 +1,7 @@
-# App Waktu Solat & Azan Moden (e-Solat JAKIM)
+# App Waktu Solat & Azan JAKIM (Edisi Syeikh Naji Qazzaz)
 
-Projek Flutter lengkap (Material 3) siap dengan sinkronisasi API e-Solat JAKIM (Zon Lalai: SBH07 - Beaufort/Kuala Penyu/Sipitang/Membakut/Tenom).
-
-Projek ini dilengkapi skrip GitHub Actions pintar yang akan membina fail APK sedia pasang secara automatik.
-
-### Cara Guna:
-1. Upload folder ini ke akaun GitHub anda.
-2. Buka tab **Actions** di repo GitHub anda.
-3. Muat turun APK dari bahagian **Artifacts** apabila proses binaan siap!
+Aplikasi waktu solat moden Material 3 berasaskan portal rasmi e-Solat JAKIM.
+- Suara Azan: **Syeikh Naji Qazzaz** (Masjidil Aqsa)
+- Azan Subuh khas dengan laungan *"As-salatu khairum minan naum"*
+- Dilengkapi **Doa Selepas Azan** (Arab, Rumi & Terjemahan)
+- Kad Hero Dinamik & Pemasa Undur (Countdown) Waktu Solat Seterusnya
