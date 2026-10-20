@@ -27,11 +27,15 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: Prepare Android Scaffold
+      - name: Prepare Android Scaffold & Update Gradle
         run: |
           cp android/app/src/main/AndroidManifest.xml /tmp/AndroidManifest.xml || true
           flutter create . --org com.musa --project-name azan_jakim_app
           cp /tmp/AndroidManifest.xml android/app/src/main/AndroidManifest.xml || true
+          
+          # Naik taraf Gradle Wrapper ke versi 8.4 (Selesaikan isu version-check)
+          sed -i -E 's/gradle-[0-9.]+-/gradle-8.4-/g' android/gradle/wrapper/gradle-wrapper.properties || true
+          sed -i -e 's/-bin\.zip/-all\.zip/g' android/gradle/wrapper/gradle-wrapper.properties || true
 
       - name: Install Dependencies
         run: flutter pub get
