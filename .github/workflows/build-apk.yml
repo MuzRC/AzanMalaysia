@@ -27,25 +27,38 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: Prepare Android Scaffold, Gradle & SDK Version
+      - name: Prepare Android Scaffold, Gradle & Desugaring
         run: |
           cp android/app/src/main/AndroidManifest.xml /tmp/AndroidManifest.xml || true
           flutter create . --org com.musa --project-name azan_jakim_app
           cp /tmp/AndroidManifest.xml android/app/src/main/AndroidManifest.xml || true
           
-          # 1. Kemaskini Gradle Wrapper ke 8.4
+          # 1. Kemaskini Gradle Wrapper ke versi 8.4
           sed -i -E 's/gradle-[0-9.]+-/gradle-8.4-/g' android/gradle/wrapper/gradle-wrapper.properties || true
           sed -i -e 's/-bin\.zip/-all\.zip/g' android/gradle/wrapper/gradle-wrapper.properties || true
 
-          # 2. Kemaskini compileSdk ke 35
-          sed -i -E 's/compileSdk(\s*=\s*|\s+).*/compileSdk = 35/g' android/app/build.gradle || true
-
-          # 3. Kemaskini / Suntik ndkVersion 25.1.8937393
-          if grep -q "ndkVersion" android/app/build.gradle; then
-            sed -i -E 's/ndkVersion(\s*=\s*|\s+).*/ndkVersion = "25.1.8937393"/g' android/app/build.gradle || true
-          else
-            sed -i '/compileSdk/a \    ndkVersion = "25.1.8937393"' android/app/build.gradle || true
-          fi
+          # 2. Suntik tetapan compileSdk 35, NDK, dan Core Library Desugaring
+          python3 -c '
+          import re
+          with open("android/app/build.gradle", "r") as f:
+              c = f.read()
+          c = re.sub(r"compileSdk(\s*=\s*|\s+).*", "compileSdk = 35", c)
+          if "ndkVersion" in c:
+              c = re.sub(r"ndkVersion(\s*=\s*|\s+).*", "ndkVersion = \"25.1.8937393\"", c)
+          else:
+              c = c.replace("compileSdk = 35", "compileSdk = 35\n    ndkVersion = \"25.1.8937393\"")
+          if "coreLibraryDesugaringEnabled" not in c:
+              c = re.sub(r"(compileOptions\s*\{)", r"\1\n        coreLibraryDesugaringEnabled true", c)
+          if "multiDexEnabled" not in c:
+              c = re.sub(r"(defaultConfig\s*\{)", r"\1\n        multiDexEnabled true", c)
+          if "desugar_jdk_libs" not in c:
+              if "dependencies {" in c:
+                  c = c.replace("dependencies {", "dependencies {\n    coreLibraryDesugaring \"com.android.tools:desugar_jdk_libs:2.0.4\"")
+              else:
+                  c += "\ndependencies {\n    coreLibraryDesugaring \"com.android.tools:desugar_jdk_libs:2.0.4\"\n}\n"
+          with open("android/app/build.gradle", "w") as f:
+              f.write(c)
+          '
 
       - name: Install Dependencies
         run: flutter pub get
